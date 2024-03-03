@@ -29,12 +29,12 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
   sudo cat /var/root/.ssh/id_ed25519.pub | ssh backup@<client> 'cat >> /Users/backup/.ssh/authorized_keys
 ```
 
-7) Check that the server can logon to the client as the 'backup' user, without asking for a password
+7) Check that the server can run a command like `date`on the client as the 'backup' user, without asking for a password:
 ```
   sudo ssh backup@<client> date
 ```
 
-8) On the client, create a 'sudoers' file (using `sudo visudo -f /etc/sudoers.d/backup` or the command below) for the 'backup' user, to restrict the 'backup' user to run 'rsync' as sudo:
+8) On the client, create a 'sudoers.d/backup' file (using `sudo visudo -f /etc/sudoers.d/backup` or the command below) for the 'backup' user, to restrict the 'backup' user to run 'rsync' as sudo:
 ```
   sudo tee /etc/sudoers.d/backup <<<'backup ALL = (root) NOPASSWD: /opt/local/bin/rsync'
 ```
