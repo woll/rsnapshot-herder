@@ -1,5 +1,5 @@
 # rsnapshot-herder
-A script to handle the high-level sync and rotation steps needed when using the `sync_first` mode of `rsnapshot`.
+A script to handle the high-level sync and rotation steps needed when using the `sync_first` mode of `rsnapshot`, that is especially useful when backing up laptops that may not be online all the time.  
 
 Most descriptions of installing and configuring rsnapshot use the simpler, default mechanism (basically, running `rsnapshot daily` etc, at the correct times in cron), that is not so convenient/suitable if you are backing up machines with unreliable connections (like laptops that may be turned off when the backup is attempted).
 
