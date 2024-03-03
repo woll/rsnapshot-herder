@@ -94,7 +94,7 @@ backup<tab>backup@<client>:<path-to-user1-home-on-client>/      .
 backup<tab>backup@<client>:<path-to-user2-home-on-client>/      .
 ```
 
-17) Install the `rsnapshot-herder` script on the server, and edit the `configuration` section to match your requiresments/system.
+17) Install the `rsnapshot-herder` script on the server, and edit the `Configuration` section to match your requirements/system.
 
 18) On the server, create a root cron entry  (`sudo crontab -e`) for each client to run rsnapshot-herder and try to backup each client every hour:
 ```
