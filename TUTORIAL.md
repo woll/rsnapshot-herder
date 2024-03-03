@@ -104,6 +104,4 @@ backup<tab>backup@<client>:<path-to-user2-home-on-client>/      .
 Each run of `rsnapshot-herder` is independent from the others, so it doesn't actually matter if they run at the same time (apart from overwhelming the server it there's too many clients!).
 
 Notes:
-1) On MacOS, if backing-up to an external disk on the server then disable "Ignore ownership on this volume" in Finder for that disk. This preserves file ownership/privacy when synced to that disk, so that only the correct user (and root) on the server is able to view their files.
-2) I do not set `--numeric-ids` in the rsync args in rsnapshot.conf, so that the user IDs will be translated from the client to the server (because there's an account for every user on the server). This is so that permissions are preserved on the server, so that a user's files are only accessible by the same user on the server.
-If the numeric IDs are preserved, then you need to set permissions on the backups to only allow root access to the backups, because the numeric ID on the client will be a completely different user on the server.
+1) On MacOS, if backing-up to an external disk on the server then disable "Ignore ownership on this volume" in Finder for that disk, so that only the correct user (or root) on the server is able to view their files.
