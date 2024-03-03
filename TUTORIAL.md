@@ -88,7 +88,7 @@ To reduce/limit/prevent-saturation-of the bandwidth for clients with 'slow/expen
 --compress --bwlimit=1MiB
 ```
 
-16) Add a backup line for each user on the client you want to be backed up
+16) Add a backup line for each client user account to be backed up
 ```
 backup<tab>backup@<client>:<path-to-user1-home-on-client>/      .
 backup<tab>backup@<client>:<path-to-user2-home-on-client>/      .
