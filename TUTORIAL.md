@@ -1,7 +1,7 @@
 # How to install and setup rsnapshot-herder
 
 Terminology:
-* "Server": The machine where the backups are stored, and where rnsapshot is run
+* "Server": The machine where the backups are stored, and where rsnapshot is run
 * "Client": A machine to be backed up
 
 Note: This tutorial is based on the server and clients all running MacOS with MacPorts, so some of the example file paths to executables/system files may be different on other OSes. 
