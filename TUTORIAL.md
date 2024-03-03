@@ -38,7 +38,7 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
 ```
   sudo tee /etc/sudoers.d/backup <<<'backup ALL = (root) NOPASSWD: /opt/local/bin/rsync'
 ```
-  Test this on the client with:
+  Test this logged on as the 'backup' user on the client with:
 ```
   sudo /opt/local/bin/rsync --version
 ```
