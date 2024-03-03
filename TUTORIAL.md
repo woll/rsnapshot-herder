@@ -98,7 +98,7 @@ backup<tab>backup@<client>:<path-to-user2-home-on-client>/      .
 
 17) Install the `rsnapshot-herder` script on the server, and edit the `Configuration` section to match your requirements/system.
 
-18) On the server, create a root cron entry  (`sudo crontab -e`) for each client to run rsnapshot-herder and try to backup each client every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required. 
+18) On the server, create a root cron entry  (`sudo crontab -e`) for each client to run rsnapshot-herder and try to backup each client every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required. Delete/do not use the multiple cron entries like `rsnapshot daily` etc, that are required when not using the `sync_first` mode of rsnapshot.  
 ```
 17 * * * * <path-to>/rsnapshot-herder <path-to-client1-rsnapshot-conf>/
 47 * * * * <path-to>/rsnapshot-herder <path-to-client2-rsnapshot-conf>/
