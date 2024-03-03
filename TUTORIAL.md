@@ -1,3 +1,5 @@
+# How to install and setup rsnapshot-herder
+
 Terminology:
 * "Server": The machine where the backups are stored, and where rnsapshot is run
 * "Client": A machine to be backed up
