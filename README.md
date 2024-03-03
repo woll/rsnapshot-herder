@@ -8,3 +8,5 @@ Using the `sync_first` option of rsnapshot fits much better with laptops, or oth
 To use the `sync_first` mode, rsnapshot needs to be run multiple times (to sync and rotate the backups in the correct order and at the correct times) to create a backup that matches the frequency you require. `rsnapshot-herder` is a script that does this.
 
 I first saw a mention of this technique from the user 'Tapani Tarvainen' in a thread on the rsnapshot mailing list (https://sourceforge.net/p/rsnapshot/mailman/message/34179129/), but I couldn't find a detailed tutorial/script that implements this strategy, so I wrote `rsnapshot-herder`.
+
+rsnapshot-herder configures itself from standard rsnapshot.conf files.
