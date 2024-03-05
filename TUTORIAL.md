@@ -107,3 +107,4 @@ Each run of `rsnapshot-herder` is independent from the others, so it doesn't act
 
 Notes:
 1) On MacOS, if backing-up to an external disk on the server then disable "Ignore ownership on this volume" in Finder for that disk, so that only the correct user (or root) on the server is able to view their files.
+2) On MacOS, you probably want to add ` --xattrs` to the `rsync_long_args` in the client rsnapshot config file, so that Macintosh Resource Forks are backed up.
