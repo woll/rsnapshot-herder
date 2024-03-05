@@ -5,7 +5,7 @@ Most descriptions of installing and configuring rsnapshot use the simpler, defau
 
 Using the `sync_first` option of rsnapshot fits much better with laptops, or other computers, that may be turned off/not connected when the backup is attempted. Apparently, in future, using `sync_first` will be the recommended way of using rsnapshot, but there does not seem to be a lot of documentation on the steps required to use that mode.
 
-To use the `sync_first` mode, rsnapshot needs to be run multiple times (to sync and rotate the backups in the correct order and at the correct times) to create a backup that matches the frequency you require. `rsnapshot-herder` is a script that does this.
+To use the `sync_first` mode, rsnapshot needs to be run multiple times (to sync and rotate the backups in the correct order and at the correct times) to create a backup that matches the frequency you require, and to do that without rotating too often (which would cause older backups of files to be 'lost' unnecessarily). `rsnapshot-herder` is a script that does this.
 
 I first saw a mention of this technique from the user 'Tapani Tarvainen' in a thread on the rsnapshot mailing list (https://sourceforge.net/p/rsnapshot/mailman/message/34179129/), but I couldn't find a detailed tutorial/script that implements this strategy, so I wrote `rsnapshot-herder`.
 
