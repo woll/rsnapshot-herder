@@ -9,4 +9,4 @@ To use the `sync_first` mode, rsnapshot needs to be run multiple times (to sync 
 
 I first saw a mention of this technique from the user 'Tapani Tarvainen' in a thread on the rsnapshot mailing list (https://sourceforge.net/p/rsnapshot/mailman/message/34179129/), but I couldn't find a detailed tutorial/script that implements this strategy, so I wrote `rsnapshot-herder`.
 
-`rsnapshot-herder` configures itself from standard rsnapshot.conf files.
+`rsnapshot-herder` reads standard rsnapshot.conf files to extract the relevant settings.

@@ -1,0 +1,243 @@
+#!/bin/bash
+# Args: <rsnapshot_conf>
+# eg: rsnapshot-herder rsnapshot.<client1>.conf
+
+
+# Internal initialisation
+script_name="`basename $0`"
+if [ $# -ne 1 ]; then printf "Usage: $script_name <rsnapshot_conf>\n" 1>&2; exit 1; fi
+rsnapshot_conf="$1"
+if [ ! -f "$rsnapshot_conf" ]; then printf "ERROR: \"$rsnapshot_conf\" does not exist\n" 1>&2; exit 1; fi
+rsnapshot_root="`egrep '^snapshot_root' "$rsnapshot_conf" | cut -f 2`"
+if [ ! -d "$rsnapshot_root" ]; then printf "ERROR: \"$rsnapshot_root\" does not exist\n" 1>&2; exit 1; fi
+rsnapshot_logfile="`egrep '^logfile' "$rsnapshot_conf" | cut -f 2`"
+completed_or_error=0
+
+
+############################## Configuration #########################################
+
+RSNAPSHOT=/opt/local/bin/rsnapshot
+
+# Number of rotations for each backup level (not including the topmost), before rotating the next-higher level.
+# This sets the frequency of rotations for each backup level, relative to the 'FASTEST_ROTATION'.
+# e.g. "7 4 12" rotates the lowest backup level 7 times before rotating the second level and so on, up to
+# the highest level which will be rotated after the previous level has rotated 12 times.
+# The number of rotations actually retained by rsnapshot is defined in the rsnapshot.conf file.
+DELTA_ROTATIONS=( 7 4 12 )
+
+# How often (in minutes) the fastest-changing backup level (typically named hourly, daily or alpha) should rotate.
+# Every hour is '60', every day is '60 * 24' etc
+FASTEST_ROTATION=$((60 * 24))
+
+# Warn if the backup fails for longer than FASTEST_ROTATION * FAIL_WARNING 
+FAIL_WARNING=3
+
+# LOG_LEVEL: 0=Off, 1=Minimum, 2=Major actions or 3=All
+LOG_LEVEL=3
+# LOG_OUTPUT: "log" or "stdout"
+# "log" will append the log to the 'logfile' in the rsnapshot.conf file if set, or to the system using 'logger'.
+LOG_OUTPUT="stdout"
+
+# MAIL_LEVEL: 0=None, 1=Minimum (only when a sync succeeds), 2=Major actions only or 3=All
+MAIL_LEVEL=3
+
+SENDMAIL=/usr/sbin/sendmail
+TO_MAIL_ADDRESS="to@2example.com"
+FROM_MAIL_ADDRESS="from@example.com"
+MAIL_SUBJECT=`basename "$rsnapshot_conf"`
+
+#################################################################################
+
+
+# Initialise mail sending 
+mail_message=`mktemp`
+printf "To: $TO_MAIL_ADDRESS\nFrom: $FROM_MAIL_ADDRESS\nSubject: $MAIL_SUBJECT\n" > $mail_message
+
+
+log_msg() {
+	log_value=$1; shift
+	mail_value=$1; shift
+	message=$@
+
+
+	time="$(date +'%d-%m-%Y %T') "
+	if [ $log_value -le $LOG_LEVEL ]; then
+		if [ "$LOG_OUTPUT" = "stdout" ]; then
+			printf "$time$script_name $message"
+		elif [ -z "$rsnapshot_logfile" ]; then
+			printf "$time$script_name $rsnapshot_conf $message" | logger
+		else
+			printf "$time$script_name $message" >> "$rsnapshot_logfile"
+		fi
+	fi
+
+	if [ $mail_value -le $MAIL_LEVEL ]; then
+		if [ $mail_value -eq 1 ]; then
+			printf "$message" >> $mail_message
+		else
+			printf "$time $script_name $message" >> $mail_message
+		fi
+	fi
+}
+
+
+log_cmd() {
+	log_value=$1
+	shift
+	mail_value=$1
+	shift
+	cmd="$@"
+
+	cmd_exit_value_tmp=`mktemp`
+	time="$(date +'%d-%m-%Y %T') "
+	if [ $log_value -le $LOG_LEVEL ]; then
+		if [ "$LOG_OUTPUT" = "stdout" -o $mail_value -le $MAIL_LEVEL ]; then
+			if [ $mail_value -le $MAIL_LEVEL ]; then
+				( printf "$time\n" ; eval "$cmd" 2>&1 ; echo $? > $cmd_exit_value_tmp ) | tee -a $mail_message
+			else
+				printf "$time\n" ; eval "$cmd" 2>&1 ; echo $? > $cmd_exit_value_tmp
+			fi
+		fi
+	else
+		eval "$cmd" 2>&1 ; echo $? > $cmd_exit_value_tmp
+	fi
+
+	cmd_exit=`cat $cmd_exit_value_tmp`
+	rm $cmd_exit_value_tmp
+	return $cmd_exit
+}
+
+
+cleanup() {
+	if [ $MAIL_LEVEL -gt 0 ]; then
+		if [ $MAIL_LEVEL -eq 1 -a $completed_or_error -eq 1 -o $MAIL_LEVEL -gt 1 ]; then
+			cat $mail_message | $SENDMAIL $TO_MAIL_ADDRESS
+		fi
+	fi
+	rm $mail_message
+}
+
+trap cleanup EXIT
+
+
+# Extract the names of the backup levels from the conf file.
+delta_names_from_conf=`egrep '^retain' "$rsnapshot_conf" | cut -f 2 | tr  '\n' ' '` 
+# Add 'sync' for the hidden '.sync' level created when using the rsnapshot 'sync_first' mode.
+delta_names=( "sync" $delta_names_from_conf )
+
+# Add '0' so that the hidden '.sync' level is always rotated.
+DELTA_ROTATIONS=("0" ${DELTA_ROTATIONS[@]})
+
+if [ $(( ${#delta_names[@]}-1 )) != ${#DELTA_ROTATIONS[@]} ]; then
+	log_msg 0 0 "ERROR: The number of DELTA_ROTATIONS ($((${#DELTA_ROTATIONS[@]}-1))) must be 1 less than the number of backup levels ($((${#delta_names[@]}-1))) in $rsnapshot_conf\n"
+	complete_or_error=1
+	exit 1
+fi
+
+
+state_dir="$rsnapshot_root/.rsnapshot-herder_state"
+exit_value_file="$state_dir/exit-value"
+backup_time_file="$state_dir/backup_time"
+fastest_rotation_file="$state_dir/fastest_rotation"
+
+# Create state directory if it does not exist
+if [ ! -d "$state_dir" ]; then
+	log_msg 3 3 "Create $state_dir\n"
+	mkdir "$state_dir"
+
+	# Set number of past delta rotations to zero
+	for ((i=${#delta_names[@]}-1; i>=0; i-- ))
+	do
+		log_msg 3 3 "Create $state_dir/${delta_names[$i]}\n"
+		echo 0 > "$state_dir/${delta_names[$i]}"
+	done
+fi
+
+
+# If exit_value file does not exist, then create it
+if [ ! -f "$exit_value_file" ]; then echo -1 > "$exit_value_file"; fi
+previous_exit_value=`cat "$exit_value_file"`
+
+# If backup_time file does not exist, then create it
+if [ ! -f "$backup_time_file" ]; then echo -1 > "$backup_time_file"; fi
+previous_backup_time=`cat "$backup_time_file"`
+backup_time=$((`date "+%s"` / 60 ))
+backup_time_delta=$(( $backup_time - $previous_backup_time ))
+
+# If fastest_rotation file does not exist, then create it
+if [ ! -f "$fastest_rotation_file" ]; then echo 0 > "$fastest_rotation_file"; fi
+previous_fastest_rotation=`cat "$fastest_rotation_file"`
+# If FASTEST_ROTATION has changed since the previous run, then force a sync
+if [ $FASTEST_ROTATION -ne $previous_fastest_rotation ]; then
+	echo $FASTEST_ROTATION > "$fastest_rotation_file"
+	FASTEST_ROTATION=0
+fi
+
+
+# If the last 'rsnapshot sync' returned an error, or the fastest rotating backup level has expired
+if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_delta -ge $FASTEST_ROTATION ]; then
+	if [ $backup_time_delta -ge $FASTEST_ROTATION ]; then
+		log_msg 2 2 "Previous '${delta_names[1]}' backup is older than sync frequency, so sync...\n"
+	else
+		log_msg 2 2 "Previous 'rsnapshot sync' incomplete, so re-try...\n"
+	fi
+
+	log_cmd 2 2 "$RSNAPSHOT -v -c \"$rsnapshot_conf\" sync"
+	exit_value=$?
+	echo $exit_value > "$exit_value_file"
+	log_msg 3 3 "Exit value from rsnapshot $exit_value\n"
+
+	if [ $exit_value -ne 0 -a $previous_exit_value -ne 2 ]; then
+		log_msg 2 3 "rsnapshot sync did not complete\n"
+		if [ $backup_time_delta -ge $(( FAIL_WARNING * FASTEST_ROTATION )) ]; then
+			log_msg 0 0 "ERROR: Backup has failed to complete $FAIL_WARNING or more times\n"
+			completed_or_error=1
+		fi
+	else
+		log_msg 1 1 "rsnapshot sync completed OK\n"
+		# Save time of rsnapshot
+		echo $((`date "+%s"` / 60 )) > "$backup_time_file"
+		completed_or_error=1
+	fi
+
+
+	# If the rsync finished successfully, then do the required rsnapshot rotations
+	if [ $exit_value -eq 0 -o $exit_value -eq 2 ]; then
+		# For each backup level
+		for ((i=${#delta_names[@]}-1; i>=1; i--))
+		do
+			delta=${delta_names[$i]}
+			rotations=`cat "$state_dir/$delta"`
+			log_msg 3 3 "'$delta' has been rotated $rotations\n"
+
+			next_lower_delta=${delta_names[$i-1]}
+			next_lower_rotations=`cat "$state_dir/$next_lower_delta"`
+			# If the next lower backup level has been rotated enough times, then rotate this level
+			if [ $next_lower_rotations -ge ${DELTA_ROTATIONS[$i-1]} ]; then
+				log_msg 3 3 "'$next_lower_delta' has rotated $next_lower_rotations times, so rotate '$delta'\n"
+				log_cmd 2 2 "$RSNAPSHOT -v -c \"$rsnapshot_conf\" $delta"
+				log_msg 3 3 "Increment '$delta' rotations to $((rotations + 1))\n"
+				echo $((rotations + 1)) > "$state_dir/$delta"
+				log_msg 3 3 "Reset '$next_lower_delta' rotations to 0\n"
+				echo 0 > "$state_dir/$next_lower_delta"
+			fi
+		done
+	fi
+elif [ $backup_time_delta -lt $FASTEST_ROTATION ]; then
+	log_msg 2 2 "Not time for next '${delta_names[1]}' backup yet.\n"
+elif [ $previous_exit_value -eq 0 ]; then
+	log_msg 3 3 "Previous rsnapshot sync completed OK\n"
+elif [ $previous_exit_value -eq 2 ]; then
+	log_msg 2 3 "Previous rsnapshot sync exit value was 2: Minor errors\n"
+fi
+
+
+# Display current rotation levels
+msg="Current rotation levels: "
+for ((i=${#delta_names[@]}-1; i>=0; i--))
+do
+	value=`cat "$state_dir/${delta_names[$i]}"`
+	msg="${msg}${delta_names[$i]}: $value  "
+done
+msg="${msg}\n"
+log_msg 3 3 "$msg"
