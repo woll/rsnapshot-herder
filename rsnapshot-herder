@@ -48,8 +48,8 @@ LOG_OUTPUT="stdout"
 MAIL_LEVEL=3
 
 SENDMAIL=/usr/sbin/sendmail
-TO_MAIL_ADDRESS="woll@2-islands.com"
-FROM_MAIL_ADDRESS="woll@2-islands.com"
+TO_MAIL_ADDRESS="to@example.com"
+FROM_MAIL_ADDRESS="from@example.com"
 MAIL_SUBJECT=`basename "$rsnapshot_conf"`
 
 #################################################################################
