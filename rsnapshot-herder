@@ -4,12 +4,18 @@
 
 
 # Internal initialisation
+cmd_exit_value_tmp=`mktemp`
 script_name="`basename $0`"
 if [ $# -ne 1 ]; then printf "Usage: $script_name <rsnapshot_conf>\n" 1>&2; exit 1; fi
 rsnapshot_conf="$1"
 if [ ! -f "$rsnapshot_conf" ]; then printf "ERROR: \"$rsnapshot_conf\" does not exist\n" 1>&2; exit 1; fi
 rsnapshot_root="`egrep '^snapshot_root' "$rsnapshot_conf" | cut -f 2`"
 if [ ! -d "$rsnapshot_root" ]; then printf "ERROR: \"$rsnapshot_root\" does not exist\n" 1>&2; exit 1; fi
+
+rsnapshot_lockfile="`( egrep '^lockfile' "$rsnapshot_conf" ; echo $? > $cmd_exit_value_tmp ) | cut -f 2`"
+if [ `cat $cmd_exit_value_tmp` -ne 0 ]; then printf "ERROR: 'lockfile' is not defined in \"$rsnapshot_conf\"\n" 1>&2; exit 1; fi
+echo $rsnapshot_lockfile
+
 rsnapshot_logfile="`egrep '^logfile' "$rsnapshot_conf" | cut -f 2`"
 completed_or_error=0
 
@@ -38,12 +44,12 @@ LOG_LEVEL=3
 # "log" will append the log to the 'logfile' in the rsnapshot.conf file if set, or to the system using 'logger'.
 LOG_OUTPUT="stdout"
 
-# MAIL_LEVEL: 0=None, 1=Minimum (only when a sync succeeds), 2=Major actions only or 3=All
+# MAIL_LEVEL: 0=None, 1=Minimum (only when a sync succeeds, or important failures), 2=Major actions only or 3=All
 MAIL_LEVEL=3
 
 SENDMAIL=/usr/sbin/sendmail
-TO_MAIL_ADDRESS="to@2example.com"
-FROM_MAIL_ADDRESS="from@example.com"
+TO_MAIL_ADDRESS="woll@2-islands.com"
+FROM_MAIL_ADDRESS="woll@2-islands.com"
 MAIL_SUBJECT=`basename "$rsnapshot_conf"`
 
 #################################################################################
@@ -88,7 +94,6 @@ log_cmd() {
 	shift
 	cmd="$@"
 
-	cmd_exit_value_tmp=`mktemp`
 	time="$(date +'%d-%m-%Y %T') "
 	if [ $log_value -le $LOG_LEVEL ]; then
 		if [ "$LOG_OUTPUT" = "stdout" -o $mail_value -le $MAIL_LEVEL ]; then
@@ -103,7 +108,6 @@ log_cmd() {
 	fi
 
 	cmd_exit=`cat $cmd_exit_value_tmp`
-	rm $cmd_exit_value_tmp
 	return $cmd_exit
 }
 
@@ -115,6 +119,7 @@ cleanup() {
 		fi
 	fi
 	rm $mail_message
+	rm $cmd_exit_value_tmp
 }
 
 trap cleanup EXIT
@@ -138,6 +143,9 @@ fi
 state_dir="$rsnapshot_root/.rsnapshot-herder_state"
 exit_value_file="$state_dir/exit-value"
 backup_time_file="$state_dir/backup_time"
+n_failures_file="$state_dir/n_failures"
+n_runnings_file="$state_dir/n_runnings"
+n_timeouts_file="$state_dir/n_timeouts"
 fastest_rotation_file="$state_dir/fastest_rotation"
 
 # Create state directory if it does not exist
@@ -164,6 +172,15 @@ previous_backup_time=`cat "$backup_time_file"`
 backup_time=$((`date "+%s"` / 60 ))
 backup_time_delta=$(( $backup_time - $previous_backup_time ))
 
+# If n_failures file does not exist, then create it
+if [ ! -f "$n_failures_file" ]; then echo 0 > "$n_failures_file"; fi
+
+# If n_runnings file does not exist, then create it
+if [ ! -f "$n_runnings_file" ]; then echo 0 > "$n_runnings_file"; fi
+
+# If n_timeouts file does not exist, then create it
+if [ ! -f "$n_timeouts_file" ]; then echo 0 > "$n_timeouts_file"; fi
+
 # If fastest_rotation file does not exist, then create it
 if [ ! -f "$fastest_rotation_file" ]; then echo 0 > "$fastest_rotation_file"; fi
 previous_fastest_rotation=`cat "$fastest_rotation_file"`
@@ -182,6 +199,13 @@ if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_de
 		log_msg 2 2 "Previous 'rsnapshot sync' incomplete, so re-try...\n"
 	fi
 
+	timeout=0
+	if [ ! -f "$rsnapshot_lockfile" ]; then
+		running=-1
+	else
+		ps -p `cat "$rsnapshot_lockfile"` 2>&1 >> /dev/null ; running=$?
+	fi
+
 	log_cmd 2 2 "$RSNAPSHOT -v -c \"$rsnapshot_conf\" sync"
 	exit_value=$?
 	echo $exit_value > "$exit_value_file"
@@ -189,14 +213,38 @@ if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_de
 
 	if [ $exit_value -ne 0 -a $previous_exit_value -ne 2 ]; then
 		log_msg 2 3 "rsnapshot sync did not complete\n"
-		if [ $backup_time_delta -ge $(( FAIL_WARNING * FASTEST_ROTATION )) ]; then
-			log_msg 0 0 "ERROR: Backup has failed to complete $FAIL_WARNING or more times\n"
-			completed_or_error=1
+
+		# Handle the different reasons for not completing
+		# If it did not complete because rsnapshot is already running
+		if [ $running -eq 0 ]
+		then
+			n_runnings=$((`cat "$n_runnings_file"` + 1))
+			echo $n_runnings > "$n_runnings_file"
+			log_msg 2 3 "Skipped sync because rsnapshot is already running for this client\n"
+		# If the ssh connection timedout
+		elif [ $timeout -eq 1 ]
+		then
+			n_timeouts=$((`cat "$n_timeouts_file"` + 1))
+			echo $n_timeouts > "$n_timeouts_file"
+			echo "Connection to source timed out"
+		else
+			n_failures=`cat "$n_failures_file"`
+			n_failures=$((n_failures + 1))
+			echo $n_failures > "$n_failures_file"
+			if [ $backup_time_delta -ge $(( FAIL_WARNING * FASTEST_ROTATION )) ]; then
+				log_msg 0 0 "ERROR: Backup has failed to complete $n_failures times\n"
+				completed_or_error=1
+			fi
 		fi
+		
+		# Handle when ssh timeouts
 	else
 		log_msg 1 1 "rsnapshot sync completed OK\n"
 		# Save time of rsnapshot
 		echo $((`date "+%s"` / 60 )) > "$backup_time_file"
+		echo 0 > "$n_failures_file"
+		echo 0 > "$n_runnings_file"
+		echo 0 > "$n_timeouts_file"
 		completed_or_error=1
 	fi
 
