@@ -70,10 +70,8 @@ log_msg() {
 		if [ "$LOG_OUTPUT" = "stdout" ]; then
 			printf "$time$script_name $message"
 		elif [ -z "$rsnapshot_logfile" ]; then
-			echo "Output to logger"
 			printf "$time$script_name $rsnapshot_conf $message" | logger
 		else
-			echo "Output to log file"
 			printf "$time$script_name $message" >> "$rsnapshot_logfile"
 		fi
 	fi
