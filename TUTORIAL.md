@@ -34,7 +34,9 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
   sudo ssh backup@<client> date
 ```
 
-8) On the client, create a 'sudoers.d/backup' file (using `sudo visudo -f /etc/sudoers.d/backup` or the command below) for the 'backup' user, to restrict the 'backup' user to run 'rsync' as sudo:
+8) Repeat 5-7 in reverse to allow the 'backup' user on the client to connect to the server without requiring a password: Create a key on the client. Add that key to the 'backup' user's ssh authorized_keys file on the server. Check it works.
+
+9) On the client, create a 'sudoers.d/backup' file (using `sudo visudo -f /etc/sudoers.d/backup` or the command below) for the 'backup' user, to restrict the 'backup' user to run 'rsync' as sudo:
 ```
   sudo tee /etc/sudoers.d/backup <<<'backup ALL = (root) NOPASSWD: /opt/local/bin/rsync'
 ```
@@ -44,7 +46,7 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
 ```
   If that fails, then the main sudoers file on the client might be missing the line: `#includedir /etc/sudoers.d`
 
-9) From the server, test that the sudoers file allows the server to run 'sudo rsync' on the client, but not anything else.
+10) From the server, test that the sudoers file allows the server to run 'sudo rsync' on the client, but not anything else.
    This should work:
     ```
     sudo ssh backup@<client> sudo /opt/local/bin/rsync --version
@@ -54,31 +56,34 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
     sudo ssh backup@<client> sudo date
     ```
 
-10) On the server, create an rsnapshot config file for each client. e.g. named `rsnapshot.<client>.conf`
+11) On the server create a 'sudoers.d/backup' file that restricts the 'backup' user to only executing rsync and rsnaphot-herder as sudo.
+
+12) On the server, create an rsnapshot config file for each client. e.g. named `rsnapshot.<client>.conf`
 ```
 sudo cp /opt/local/etc/rsnapshot.conf <your path>/rsnapshot.<client>.conf
 ```
 
-11) In this client rsnapshot config file, set the snapshot_root (using rsnapshot.conf `<tab>` syntax) to a unique directory for each client. e.g.
+13) In this client rsnapshot config file, set the snapshot_root (using rsnapshot.conf `<tab>` syntax) to a unique directory for each client. e.g.
 ```
 snapshot_root<tab>/Volumes/BigBackupDisk/rsnapshot-<client>
 ```
 
-12) Turn on the 'sync_first' mode
+14) Turn on the 'sync_first' mode
 ```
 sync_first<tab>1
 ```
 
-13) Set the lockfile to be unique for each client
+15) Set the lockfile to be unique for each client
 ```
 lockfile<tab>/var/run/rsnapshot-<client>.pid
 ```
-14) Enable the cmd_ssh setting
+
+16) Enable the cmd_ssh setting
 ```
 cmd_ssh<tab>/usr/bin/ssh
 ```
 
-15) Add the following to the rsync_long_args setting:
+17) Add the following to the rsync_long_args setting:
 ```
 rsync_long_args<tab>--partial --partial-dir=.rsync-partial --rsync-path="sudo /opt/local/bin/rsync" -f'P .rsync-partial' 
 ```
@@ -90,18 +95,24 @@ To reduce/limit/prevent-saturation-of the bandwidth for clients with 'slow/expen
 --compress --bwlimit=1MiB
 ```
 
-16) Add a backup line for each client user account to be backed up
+18) Add a line to set the reverse ssh port (this should be a unique port for each client)
 ```
-backup<tab>backup@<client>:<path-to-user1-home-on-client>/      .
-backup<tab>backup@<client>:<path-to-user2-home-on-client>/      .
+ssh_args<tab>-p 1999
 ```
 
-17) Install the `rsnapshot-herder` script on the server, and edit the `Configuration` section to match your requirements/system.
-
-18) On the server, create a root cron entry  (`sudo crontab -e`) for each client to run rsnapshot-herder and try to backup each client every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required. Delete/do not use the multiple cron entries like `rsnapshot daily` etc, that are required when not using the `sync_first` mode of rsnapshot.  
+19) Add a backup line for each client user account to be backed up
 ```
-17 * * * * <path-to>/rsnapshot-herder <path-to-client1-rsnapshot-conf>/
-47 * * * * <path-to>/rsnapshot-herder <path-to-client2-rsnapshot-conf>/
+backup<tab>backup@localhost:<path-to-user1-home-on-client>/      .
+backup<tab>backup@localhost:<path-to-user2-home-on-client>/      .
+```
+
+20) Install the `rsnapshot-herder` script on the server, and edit the `Configuration` section to match your requirements/system.
+
+21) On each client, create a cron entry under the 'backup' user to create a reverse ssh tunnel and run rsnapshot-herder on the server, to try to backup every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required.
+Delete/do not use the multiple cron entries (like `rsnapshot daily` etc) that are required when not using the `sync_first` mode of rsnapshot.  
+The port before the ':localhost' must match the port specified in step 18.
+```
+17 * * * * /usr/bin/ssh -fR 1999:localhost:22 backup@<server> sleep 10 ; /usr/bin/ssh backup@<server> "sudo <path-to>/rsnapshot-herder <path-to-client1-rsnapshot-conf>/
 ```
 Each run of `rsnapshot-herder` is independent from the others, so it doesn't actually matter if they run at the same time (apart from overwhelming the server it there's too many clients!).
 

@@ -35,7 +35,7 @@ DELTA_ROTATIONS=( 7 4 12 )
 FASTEST_ROTATION=$((60 * 24))
 
 # Warn if the backup fails for longer than FASTEST_ROTATION * FAIL_WARNING 
-FAIL_WARNING=3
+FAIL_WARNING=1
 
 # LOG_LEVEL: 0=Off, 1=Minimum, 2=Major actions or 3=All
 LOG_LEVEL=3
@@ -94,7 +94,7 @@ log_cmd() {
 	cmd="$@"
 
 	time="$(date +'%d-%m-%Y %T') "
-	# rsnapshot outputs to the log automatically, so only need to handle the MAIL_LEVEL
+	# rsnapshot output is sent to the log (if configured), so only need to handle the MAIL_LEVEL
 	if [ $mail_value -le $MAIL_LEVEL ]; then
 		( printf "$time\n" ; eval "$cmd" 2>&1 ; echo $? > $cmd_exit_value_tmp ) | tee -a $mail_message
 	else
@@ -214,7 +214,7 @@ if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_de
 			n_failures=`cat "$n_failures_file"`
 			n_failures=$((n_failures + 1))
 			echo $n_failures > "$n_failures_file"
-			if [ $backup_time_delta -ge $(( FAIL_WARNING * FASTEST_ROTATION )) ]; then
+			if [ $backup_time_delta -gt $(( FAIL_WARNING * FASTEST_ROTATION )) ]; then
 				log_msg 0 0 "ERROR: '${delta_names[1]}' backup has failed to complete $n_failures times\n"
 				completed_or_error=1
 			fi
