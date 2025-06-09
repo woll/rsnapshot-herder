@@ -34,7 +34,7 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
   sudo ssh backup@<client> date
 ```
 
-8) Repeat 5-7 in reverse to allow the 'backup' user on the client to connect to the server without requiring a password: Create a key on the client. Add that key to the 'backup' user's ssh authorized_keys file on the server. Check it works.
+8) Repeat steps 5-7 but reversing 'server' and 'client', to allow the 'backup' user on the client to connect to the server without requiring a password: Create a key on the client. Add that key to the 'backup' user's ssh authorized_keys file on the server. Check it works.
 
 9) On the client, create a 'sudoers.d/backup' file (using `sudo visudo -f /etc/sudoers.d/backup` or the command below) for the 'backup' user, to restrict the 'backup' user to run 'rsync' as sudo:
 ```
