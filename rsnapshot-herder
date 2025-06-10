@@ -1,13 +1,19 @@
 #!/bin/bash
-# Args: <rsnapshot_conf>
-# eg: rsnapshot-herder rsnapshot.<client1>.conf
+# Args: <client>
+# eg: rsnapshot-herder [-force] <client1>
 
+# Edit these settings to match your installation
+rsnapshot_conf_dir_path="<path_to_conf_dir>"
 
 # Internal initialisation
 cmd_exit_value_tmp=`mktemp`
 script_name="`basename $0`"
-if [ $# -ne 1 ]; then printf "Usage: $script_name <rsnapshot_conf>\n" 1>&2; exit 1; fi
-rsnapshot_conf="$1"
+
+if [ $# -ne 1 -a $# -ne 2 ]; then printf "Usage: $script_name [-force] <rsnapshot_conf>\n" 1>&2; exit 1; fi
+force=0
+if [ $1 == '-force' ]; then force=1; shift; fi
+
+rsnapshot_conf="$rsnapshot_conf_dir_path/rsnapshot.$1.conf"
 if [ ! -f "$rsnapshot_conf" ]; then printf "ERROR: \"$rsnapshot_conf\" does not exist\n" 1>&2; exit 1; fi
 rsnapshot_root="`egrep '^snapshot_root' "$rsnapshot_conf" | cut -f 2`"
 if [ ! -d "$rsnapshot_root" ]; then printf "ERROR: \"$rsnapshot_root\" does not exist\n" 1>&2; exit 1; fi
@@ -181,12 +187,12 @@ if [ $FASTEST_ROTATION -ne $previous_fastest_rotation ]; then
 fi
 
 
-# If the last 'rsnapshot sync' returned an error, or the fastest rotating backup level has expired
-if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_delta -ge $FASTEST_ROTATION ]; then
+# If the last 'rsnapshot sync' returned an error, or the fastest rotating backup level has expired or -force is on
+if [ $previous_exit_value -ne 0 -a $previous_exit_value -ne 2 -o $backup_time_delta -ge $FASTEST_ROTATION -o $force -eq 1 ]; then
 	if [ $backup_time_delta -ge $FASTEST_ROTATION ]; then
 		log_msg 2 2 "Previous '${delta_names[1]}' backup is older than sync frequency, so sync...\n"
 	else
-		log_msg 2 2 "Previous 'rsnapshot sync' incomplete, so re-try...\n"
+		log_msg 2 2 "Previous 'rsnapshot sync' incomplete or '-force' set, so re-try...\n"
 	fi
 
 	if [ ! -f "$rsnapshot_lockfile" ]; then
