@@ -5,7 +5,7 @@ case $1 in
     sleep)
         /bin/sleep 10
         ;;
-    backup)
+    rsnapshot-herder)
 	shift
         sudo <path_to_install_dir>/rsnapshot-herder $*
         ;;
