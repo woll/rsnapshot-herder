@@ -56,7 +56,7 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
     sudo ssh backup@<client> sudo date
     ```
 
-11) On the server create a 'sudoers.d/backup' file that restricts the 'backup' user to only executing rsync and rsnaphot-herder as sudo.
+11) On the server create a 'sudoers.d/backup' file that restricts the 'backup' user to only executing rsnaphot-herder as sudo.
 
 12) On the server, create an rsnapshot config file for each client. e.g. named `rsnapshot.<client>.conf`
 ```
