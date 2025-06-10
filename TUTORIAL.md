@@ -58,32 +58,37 @@ Note: This tutorial is based on the server and clients all running MacOS with Ma
 
 11) On the server create a 'sudoers.d/backup' file that restricts the 'backup' user to only executing rsnaphot-herder as sudo.
 
-12) On the server, create an rsnapshot config file for each client. e.g. named `rsnapshot.<client>.conf`
+12) Improve security by restricting the commands that the 'backup' user can run on the server via ssh. On the server, install the `restrict_commands.sh` script and edit the path to `rsnapshot-herder`. On the server, add a `command` prefix to the 'backup' user's key in the 'backup' users authorized_keys file.
+```
+command="<path_to>/restrict_commands.sh"<space><key>
+```
+
+13) On the server, create an rsnapshot config file for each client. e.g. named `rsnapshot.<client>.conf`
 ```
 sudo cp /opt/local/etc/rsnapshot.conf <your path>/rsnapshot.<client>.conf
 ```
 
-13) In this client rsnapshot config file, set the snapshot_root (using rsnapshot.conf `<tab>` syntax) to a unique directory for each client. e.g.
+14) In this client rsnapshot config file, set the snapshot_root (using rsnapshot.conf `<tab>` syntax) to a unique directory for each client. e.g.
 ```
 snapshot_root<tab>/Volumes/BigBackupDisk/rsnapshot-<client>
 ```
 
-14) Turn on the 'sync_first' mode
+15) Turn on the 'sync_first' mode
 ```
 sync_first<tab>1
 ```
 
-15) Set the lockfile to be unique for each client
+16) Set the lockfile to be unique for each client
 ```
-lockfile<tab>/var/run/rsnapshot-<client>.pid
+lockfile<tab>/<rsnapshot_conf_dir>/rsnapshot-<client>.pid
 ```
 
-16) Enable the cmd_ssh setting
+17) Enable the cmd_ssh setting
 ```
 cmd_ssh<tab>/usr/bin/ssh
 ```
 
-17) Add the following to the rsync_long_args setting:
+18) Add the following to the rsync_long_args setting:
 ```
 rsync_long_args<tab>--partial --partial-dir=.rsync-partial --rsync-path="sudo /opt/local/bin/rsync" -f'P .rsync-partial' 
 ```
@@ -95,25 +100,26 @@ To reduce/limit/prevent-saturation-of the bandwidth for clients with 'slow/expen
 --compress --bwlimit=1MiB
 ```
 
-18) Add a line to set the reverse ssh port (this should be a unique port for each client)
+19) Add a line to set the reverse ssh port (this should be a unique port for each client)
 ```
 ssh_args<tab>-p 1999
 ```
 
-19) Add a backup line for each client user account to be backed up
+20) Add a backup line for each client user account to be backed up
 ```
 backup<tab>backup@localhost:<path-to-user1-home-on-client>/      .
 backup<tab>backup@localhost:<path-to-user2-home-on-client>/      .
 ```
 
-20) Install the `rsnapshot-herder` script on the server, and edit the `Configuration` section to match your requirements/system.
+21) Install the `rsnapshot-herder` script on the server, and edit the capitalised variables in the `Configuration` section to match your requirements/system.
 
-21) On each client, create a cron entry under the 'backup' user to create a reverse ssh tunnel and run rsnapshot-herder on the server, to try to backup every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required.
+22) On each client, create a cron entry for the 'backup' user to create a reverse ssh tunnel and run rsnapshot-herder on the server, to try to backup every hour. Once a backup is completed successfully, rsnapshot-herder will not do another backup for that client until required.
 Delete/do not use the multiple cron entries (like `rsnapshot daily` etc) that are required when not using the `sync_first` mode of rsnapshot.  
-The port before the ':localhost' must match the port specified in step 18.
+The port before the ':localhost' must match the port specified in step 19.
 ```
-17 * * * * /usr/bin/ssh -fR 1999:localhost:22 backup@<server> sleep 10 ; /usr/bin/ssh backup@<server> "sudo <path-to>/rsnapshot-herder <path-to-client1-rsnapshot-conf>/
+17 * * * * /usr/bin/ssh -fR 1999:localhost:22 backup@<server> sleep ; /usr/bin/ssh backup@<server> "rsnapshot-herder <client>/
 ```
+The `sleep` and `rsnapshot-herder` are interpreted by the `restrict_commands.sh` script, which calls the real commands directly using their full paths.
 Each run of `rsnapshot-herder` is independent from the others, so it doesn't actually matter if they run at the same time (apart from overwhelming the server it there's too many clients!).
 
 Notes:
