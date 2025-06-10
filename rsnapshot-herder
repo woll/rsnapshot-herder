@@ -2,8 +2,10 @@
 # Args: <client>
 # eg: rsnapshot-herder [-force] <client1>
 
-# Edit these settings to match your installation
-rsnapshot_conf_dir_path="<path_to_conf_dir>"
+############################## Configuration #########################################
+# Edit the capitalised variables to match your installation
+#
+RSNAPSHOT_CONF_DIR_PATH="<path_to_conf_dir>"
 
 # Internal initialisation
 cmd_exit_value_tmp=`mktemp`
@@ -13,7 +15,7 @@ if [ $# -ne 1 -a $# -ne 2 ]; then printf "Usage: $script_name [-force] <rsnapsho
 force=0
 if [ $1 == '-force' ]; then force=1; shift; fi
 
-rsnapshot_conf="$rsnapshot_conf_dir_path/rsnapshot.$1.conf"
+rsnapshot_conf="$RSNAPSHOT_CONF_DIR_PATH/rsnapshot.$1.conf"
 if [ ! -f "$rsnapshot_conf" ]; then printf "ERROR: \"$rsnapshot_conf\" does not exist\n" 1>&2; exit 1; fi
 rsnapshot_root="`egrep '^snapshot_root' "$rsnapshot_conf" | cut -f 2`"
 if [ ! -d "$rsnapshot_root" ]; then printf "ERROR: \"$rsnapshot_root\" does not exist\n" 1>&2; exit 1; fi
@@ -23,9 +25,6 @@ if [ `cat $cmd_exit_value_tmp` -ne 0 ]; then printf "ERROR: 'lockfile' is not de
 
 rsnapshot_logfile="`egrep '^logfile' "$rsnapshot_conf" | cut -f 2`"
 completed_or_error=0
-
-
-############################## Configuration #########################################
 
 RSNAPSHOT=/opt/local/bin/rsnapshot
 
